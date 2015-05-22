@@ -22,23 +22,14 @@ IHAjax: function(adapter, url, type, options) {
 
           Ember.$.ajax(hash);
         }, "DS: RESTAdapter#ajax " + type + " to " + url);
-      },
-
-IHSerializerFor: function(container, type, defaultSerializer) {
-      return container.lookup('serializer:'+type) ||
-                     container.lookup('serializer:application') ||
-                     container.lookup('serializer:' + defaultSerializer) ||
-                     container.lookup('serializer:-default');
-    },
+},
 
 
-IHSerializerForAdapter: function(adapter, type) {
+IHSerializerForAdapter: function(adapter, type, store) {
       var serializer = adapter.serializer;
-      var defaultSerializer = adapter.defaultSerializer;
-      var container = adapter.container;
 
-      if (container && serializer === undefined) {
-        serializer = this.IHSerializerFor(container, type.typeKey, defaultSerializer);
+      if (serializer === undefined) {
+        serializer = store.serializerFor(type);
       }
 
       if (serializer === null || serializer === undefined) {
@@ -48,11 +39,11 @@ IHSerializerForAdapter: function(adapter, type) {
       }
 
       return serializer;
-    },
+},
 
 _IHObjectIsAlive: function(object) {
       return !(Ember.get(object, "isDestroyed") || Ember.get(object, "isDestroying"));
-    },
+},
 
 _IHGuard: function(promise, test) {
       var guarded = promise['finally'](function() {
@@ -62,7 +53,7 @@ _IHGuard: function(promise, test) {
       });
 
       return guarded;
-    },
+},
 
 _IHBind: function(fn) {
       var args = Array.prototype.slice.call(arguments, 1);
@@ -70,7 +61,7 @@ _IHBind: function(fn) {
       return function() {
         return fn.apply(undefined, args);
       };
-  },
+},
 
 IHGetJSON: function(adapter, url, type, query) {
         return this.IHAjax(adapter, url, type, { data: query });
@@ -78,14 +69,16 @@ IHGetJSON: function(adapter, url, type, query) {
 
 IHReturnPromise: function(promise, serializer, type, recordArray, store) {
   return promise.then(function(adapterPayload) {
-        var payload = serializer.extract(store, type, adapterPayload, null, 'findQuery');
+        var payload;
+        store._adapterRun(function() {
+          payload = serializer.extract(store, type, adapterPayload, null, 'findQuery');
 
-        Ember.assert("The response from a findQuery must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === 'array');
+          Ember.assert("The response from a findQuery must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === 'array');
+        });
 
         recordArray.load(payload);
         return recordArray;
   }, null, "DS: Extract payload of findQuery " + type);
 }
-
 
 });
