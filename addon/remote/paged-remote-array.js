@@ -83,7 +83,7 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     var IHPromise;
 
     if( Ember.isEmpty(parentRecordType) || Ember.isEmpty(parentRecordId) ) {
-        res = store.find(modelName, ops);
+        res = store.query(modelName, ops);
     }
     else {
         var type = store.modelFor(modelName);
