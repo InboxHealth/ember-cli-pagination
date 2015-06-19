@@ -3,28 +3,6 @@ import DS from 'ember-data';
 
 export default Ember.Mixin.create({
 
-IHAjax: function(adapter, url, type, options) {
-        return new Ember.RSVP.Promise(function(resolve, reject) {
-          var hash = adapter.ajaxOptions(url, type, options);
-
-          hash.success = function(json, textStatus, jqXHR) {
-            json = adapter.ajaxSuccess(jqXHR, json);
-            if (json instanceof DS.InvalidError) {
-              Ember.run(null, reject, json);
-            } else {
-              Ember.run(null, resolve, json);
-            }
-          };
-
-          hash.error = function(jqXHR) {
-            Ember.run(null, reject, adapter.ajaxError(jqXHR, jqXHR.responseText));
-          };
-
-          Ember.$.ajax(hash);
-        }, "DS: RESTAdapter#ajax " + type + " to " + url);
-},
-
-
 IHSerializerForAdapter: function(adapter, type, store) {
       var serializer = adapter.serializer;
 
@@ -63,22 +41,148 @@ _IHBind: function(fn) {
       };
 },
 
-IHGetJSON: function(adapter, url, type, query) {
-        return this.IHAjax(adapter, url, type, { data: query });
-},
 
 IHReturnPromise: function(promise, serializer, type, recordArray, store) {
   return promise.then(function(adapterPayload) {
-        var payload;
-        store._adapterRun(function() {
-          payload = serializer.extract(store, type, adapterPayload, null, 'findQuery');
+      var records;
+      store._adapterRun(function() {
+        var requestType = Ember.get(serializer, 'isNewSerializerAPI') ? 'query' : 'findQuery';
+        var payload = normalizeResponseHelper(serializer, store, type, adapterPayload, null, requestType);
+        //TODO Optimize
+        records = pushPayload(store, payload);
+      });
 
-          Ember.assert("The response from a findQuery must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === 'array');
-        });
-
-        recordArray.load(payload);
-        return recordArray;
+      recordArray.loadRecords(records);
+      return recordArray;
   }, null, "DS: Extract payload of findQuery " + type);
 }
 
 });
+
+function normalizeResponseHelper(serializer, store, modelClass, payload, id, requestType) {
+  if (serializer.get('isNewSerializerAPI')) {
+    return serializer.normalizeResponse(store, modelClass, payload, id, requestType);
+  } else {
+    Ember.deprecate('Your custom serializer uses the old version of the Serializer API, with `extract` hooks. Please upgrade your serializers to the new Serializer API using `normalizeResponse` hooks instead.');
+    let serializerPayload = serializer.extract(store, modelClass, payload, id, requestType);
+    return _normalizeSerializerPayload(modelClass, serializerPayload);
+  }
+}
+
+function _normalizeSerializerPayload(modelClass, payload) {
+  let data = null;
+
+  if (payload) {
+    if (Array.isArray(payload)) {
+      data = payload.map(function(payload) { return _normalizeSerializerPayloadItem(modelClass, payload) });
+    } else {
+      data = _normalizeSerializerPayloadItem(modelClass, payload);
+    }
+  }
+
+  return { data };
+}
+
+function _normalizeSerializerPayloadItem(modelClass, itemPayload) {
+  var item = {};
+
+  item.id = '' + itemPayload.id;
+  item.type = modelClass.modelName;
+  item.attributes = {};
+  item.relationships = {};
+
+  modelClass.eachAttribute(function(name) {
+    if (itemPayload.hasOwnProperty(name)) {
+      item.attributes[name] = itemPayload[name];
+    }
+  });
+
+  modelClass.eachRelationship(function(key, relationshipMeta) {
+    var relationship, value;
+
+    if (itemPayload.hasOwnProperty(key)) {
+      relationship = {};
+      value = itemPayload[key];
+
+      if (relationshipMeta.kind === 'belongsTo') {
+        relationship.data = normalizeRelationshipData(key, value, relationshipMeta);
+        //handle the belongsTo polymorphic case, where { post:1, postType: 'video' }
+        if (relationshipMeta.options && relationshipMeta.options.polymorphic && itemPayload[key + 'Type']) {
+          relationship.data.type = itemPayload[key + 'Type'];
+        }
+      } else if (relationshipMeta.kind === 'hasMany') {
+        //|| [] because the hasMany could be === null
+        Ember.assert("A " + relationshipMeta.parentType + "record was pushed into the store with the value of " + key + " being " + Ember.inspect(value) + ", but " + key + " is a hasMany relationship so the value must be an array. You should probably check your data payload or serializer.", Ember.isArray(value) || value === null);
+
+        relationship.data = (value || []).map(function(item) { return normalizeRelationshipData(key, item, relationshipMeta) });
+      }
+    }
+
+    if (itemPayload.links && itemPayload.links.hasOwnProperty(key)) {
+      relationship = relationship || {};
+      value = itemPayload.links[key];
+
+      relationship.links = {
+        related: value
+      };
+    }
+
+    if (relationship) {
+      relationship.meta = Ember.get(itemPayload, "meta." + key);
+      item.relationships[key] = relationship;
+    }
+  });
+
+  return item;
+}
+
+function normalizeRelationshipData(key, value, relationshipMeta) {
+  if (Ember.isNone(value)) {
+    return null;
+  }
+  //Temporary support for https://github.com/emberjs/data/issues/3271
+  if (value instanceof Model) {
+    value = { id: value.id, type: value.constructor.modelName };
+  }
+  if (Ember.typeOf(value) === 'object') {
+    Ember.assert("Ember Data expected a number or string to represent the record(s) in the " + key + " relationship instead it found an object. If this is a polymorphic relationship please specify a 'type' key. If this is an embedded relationship please include the 'DS.EmbeddedRecordsMixin' and specify the " + key + " property in your serializer's attrs object.", value.type);
+    if (value.id) {
+      value.id = "'" + value.id + "'";
+    }
+    return value;
+  }
+
+  Ember.assert("A" + relationshipMeta.parentType + "record was pushed into the store with the value of " + key + "being " + Ember.inspect(value) + ", but " + key + "is a belongsTo relationship so the value must not be an array. You should probably check your data payload or serializer.", !Ember.isArray(value));
+  return { id: "'" + value + "'", type: relationshipMeta.type };
+}
+
+
+function pushPayload(store, payload) {
+  var result = pushPayloadData(store, payload);
+  pushPayloadIncluded(store, payload);
+  return result;
+}
+
+function pushPayloadData(store, payload) {
+  var result;
+  if (payload && payload.data) {
+    if (Array.isArray(payload.data)) {
+      result = payload.data.map(function(item) {  return _pushResourceObject(store, item) });
+    } else {
+      result = _pushResourceObject(store, payload.data);
+    }
+  }
+  return result;
+}
+
+function pushPayloadIncluded(store, payload) {
+  var result;
+  if (payload && payload.included && Array.isArray(payload.included)) {
+    result = payload.included.map(function(item) { return _pushResourceObject(store, item) });
+  }
+  return result;
+}
+
+function _pushResourceObject(store, resourceObject) {
+  return store.push({ data: resourceObject });
+}

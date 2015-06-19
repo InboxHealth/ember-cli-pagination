@@ -93,8 +93,8 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
         var label = "DS: PagedRemoteArray Query on hasManyLinks for" + modelName;
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
         url = store.adapterFor(parentRecordType).buildURL(parentRecordType, parentRecordId) + '/' + modelPath;
-        IHPromise = this.IHGetJSON(adapter, url, 'GET', ops);
-        IHPromise = Ember.RSVP.Promise.cast(IHPromise, label);
+        IHPromise = adapter.ajax(url, 'GET', { data: ops });
+        IHPromise = Ember.RSVP.Promise.resolve(IHPromise, label);
         IHPromise = this._IHGuard(IHPromise, this._IHBind(this._IHObjectIsAlive, store));
         IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
         var promiseArray = DS.PromiseArray.create({
