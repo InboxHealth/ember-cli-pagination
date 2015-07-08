@@ -11,6 +11,7 @@ IHSerializerForAdapter: function(adapter, type, store) {
       }
 
       if (serializer === null || serializer === undefined) {
+        Ember.deprecate('Ember Data 2.0 will no longer support adapters with a null serializer property. Please define `defaultSerializer: "-default"` your adapter and make sure the `serializer` property is not null.');
         serializer = {
           extract: function(store, type, payload) { return payload; }
         };
@@ -61,19 +62,23 @@ IHReturnPromise: function(promise, serializer, type, recordArray, store) {
 
 function normalizeResponseHelper(serializer, store, modelClass, payload, id, requestType) {
   if (serializer.get('isNewSerializerAPI')) {
-    return serializer.normalizeResponse(store, modelClass, payload, id, requestType);
+    var normalizedResponse = serializer.normalizeResponse(store, modelClass, payload, id, requestType);
+    if (normalizedResponse.meta) {
+      store._setMetadataFor(modelClass.modelName, normalizedResponse.meta);
+    }
+    return normalizedResponse;
   } else {
     Ember.deprecate('Your custom serializer uses the old version of the Serializer API, with `extract` hooks. Please upgrade your serializers to the new Serializer API using `normalizeResponse` hooks instead.');
-    let serializerPayload = serializer.extract(store, modelClass, payload, id, requestType);
+    var serializerPayload = serializer.extract(store, modelClass, payload, id, requestType);
     return _normalizeSerializerPayload(modelClass, serializerPayload);
   }
 }
 
 function _normalizeSerializerPayload(modelClass, payload) {
-  let data = null;
+  var data = null;
 
   if (payload) {
-    if (Array.isArray(payload)) {
+    if (Ember.typeOf(payload) === 'array') {
       data = payload.map(function(payload) { return _normalizeSerializerPayloadItem(modelClass, payload) });
     } else {
       data = _normalizeSerializerPayloadItem(modelClass, payload);
