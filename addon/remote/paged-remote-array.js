@@ -106,7 +106,7 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
   },
 
   fetchContent: function() {
-    this.set('loading', true);
+    this.set("loading",true);
     var res = this.rawFindFromStore();
     this.incrementProperty("numRemoteCalls");
     var me = this;
@@ -116,13 +116,12 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
                                        meta: rows.meta,
                                        page: me.getPage(),
                                        perPage: me.getPerPage()});
-
-      me.set('loading', false);
+      me.set("loading",false);
       return me.set("meta", metaObj.make());
-
     }, function(error) {
       me.set('loading', false);
       Util.log("PagedRemoteArray#fetchContent error " + error);
+      me.set("loading",false);
     });
 
     return res;
