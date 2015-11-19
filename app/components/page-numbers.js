@@ -80,6 +80,9 @@ export default Ember.Component.extend({
   }).property("currentPage"),
 
   actions: {
+    preventLinkDefault: function(){
+      // action made so event.preventDefault() gets called when clicking link
+    },
     pageClicked: function(number) {
       Util.log("PageNumbers#pageClicked number " + number);
       this.set("currentPage", number);
