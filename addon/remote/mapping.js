@@ -48,7 +48,6 @@ export var QueryParamsForBackend = Ember.Object.extend({
     this.accumParams('page',res);
     this.accumParams('perPage',res);
 
-    debugger;
     return res;
   }
 });
