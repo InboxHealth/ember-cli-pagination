@@ -5,7 +5,10 @@ import Util from '../util';
 export var QueryParamsForBackend = Ember.Object.extend({
   defaultKeyFor: function(key) {
     if (key === 'perPage') {
-      return 'per_page';
+      return 'size';
+    }
+    if(key === 'page') {
+      return 'number';
     }
     return null;
   },
@@ -27,7 +30,7 @@ export var QueryParamsForBackend = Ember.Object.extend({
       this.accumParamsComplex(key,mappedKey,accum);
     }
     else {
-      accum[mappedKey] = val;
+      accum["page"][mappedKey] = val;
     }
   },
 
@@ -40,11 +43,12 @@ export var QueryParamsForBackend = Ember.Object.extend({
   },
 
   make: function() {
-    var res = {};
+    var res = {page: {number: null, size: null}};
 
     this.accumParams('page',res);
     this.accumParams('perPage',res);
 
+    debugger;
     return res;
   }
 });
