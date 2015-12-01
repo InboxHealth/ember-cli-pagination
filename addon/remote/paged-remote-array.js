@@ -112,6 +112,8 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     var me = this;
 
     res.then(function(rows) {
+      rows.meta.total_pages = rows.meta['total-pages'];
+      delete rows.meta['total-pages'];
       Ember.merge(rows.meta, {current_page: me.getPage(), per_page: me.getPerPage()});
       var metaObj = ChangeMeta.create({paramMapping: me.get('paramMapping'),
                                        meta: rows.meta,
