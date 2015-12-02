@@ -11,7 +11,6 @@ IHSerializerForAdapter: function(adapter, type, store) {
       }
 
       if (serializer === null || serializer === undefined) {
-        Ember.deprecate('Ember Data 2.0 will no longer support adapters with a null serializer property. Please define `defaultSerializer: "-default"` your adapter and make sure the `serializer` property is not null.');
         serializer = {
           extract: function(store, type, payload) { return payload; }
         };
@@ -43,151 +42,83 @@ _IHBind: function(fn) {
 },
 
 
-IHReturnPromise: function(promise, serializer, type, recordArray, store) {
+IHReturnPromise: function(promise, serializer, typeClass, recordArray, store) {
   return promise.then(function(adapterPayload) {
       var records;
       store._adapterRun(function() {
-        var requestType = Ember.get(serializer, 'isNewSerializerAPI') ? 'query' : 'findQuery';
-        var payload = normalizeResponseHelper(serializer, store, type, adapterPayload, null, requestType);
+        var payload = normalizeResponseHelper(serializer, store, typeClass, adapterPayload, null, 'query');
         //TODO Optimize
-        records = pushPayload(store, payload);
+        records = store.push(payload);
       });
 
+      Ember.assert('The response to store.query is expected to be an array but it was a single record. Please wrap your response in an array or use `store.queryRecord` to query for a single record.', Ember.isArray(records));
       recordArray.loadRecords(records);
       return recordArray;
-  }, null, "DS: Extract payload of findQuery " + type);
+  }, null, "DS: Extract payload of query " + typeClass);
 }
 
 });
 
 function normalizeResponseHelper(serializer, store, modelClass, payload, id, requestType) {
-  if (serializer.get('isNewSerializerAPI')) {
-    var normalizedResponse = serializer.normalizeResponse(store, modelClass, payload, id, requestType);
-    if (normalizedResponse.meta) {
-      store._setMetadataFor(modelClass.modelName, normalizedResponse.meta);
-    }
-    return normalizedResponse;
-  } else {
-    Ember.deprecate('Your custom serializer uses the old version of the Serializer API, with `extract` hooks. Please upgrade your serializers to the new Serializer API using `normalizeResponse` hooks instead.');
-    var serializerPayload = serializer.extract(store, modelClass, payload, id, requestType);
-    return _normalizeSerializerPayload(modelClass, serializerPayload);
-  }
-}
-
-function _normalizeSerializerPayload(modelClass, payload) {
-  var data = null;
-
-  if (payload) {
-    if (Ember.typeOf(payload) === 'array') {
-      data = payload.map(function(payload) { return _normalizeSerializerPayloadItem(modelClass, payload) });
-    } else {
-      data = _normalizeSerializerPayloadItem(modelClass, payload);
-    }
-  }
-
-  return { data };
-}
-
-function _normalizeSerializerPayloadItem(modelClass, itemPayload) {
-  var item = {};
-
-  item.id = '' + itemPayload.id;
-  item.type = modelClass.modelName;
-  item.attributes = {};
-  item.relationships = {};
-
-  modelClass.eachAttribute(function(name) {
-    if (itemPayload.hasOwnProperty(name)) {
-      item.attributes[name] = itemPayload[name];
-    }
+  let normalizedResponse = serializer.normalizeResponse(store, modelClass, payload, id, requestType);
+  let validationErrors = [];
+  Ember.runInDebug(() => {
+    validationErrors = validateDocumentStructure(normalizedResponse);
   });
+  Ember.assert(`normalizeResponse must return a valid JSON API document:\n\t* ${validationErrors.join('\n\t* ')}`, Ember.isEmpty(validationErrors));
+  // TODO: Remove after metadata refactor
+  if (normalizedResponse.meta) {
+    store._setMetadataFor(modelClass.modelName, normalizedResponse.meta);
+  }
 
-  modelClass.eachRelationship(function(key, relationshipMeta) {
-    var relationship, value;
+  return normalizedResponse;
+}
 
-    if (itemPayload.hasOwnProperty(key)) {
-      relationship = {};
-      value = itemPayload[key];
-
-      if (relationshipMeta.kind === 'belongsTo') {
-        relationship.data = normalizeRelationshipData(key, value, relationshipMeta);
-        //handle the belongsTo polymorphic case, where { post:1, postType: 'video' }
-        if (relationshipMeta.options && relationshipMeta.options.polymorphic && itemPayload[key + 'Type']) {
-          relationship.data.type = itemPayload[key + 'Type'];
-        }
-      } else if (relationshipMeta.kind === 'hasMany') {
-        //|| [] because the hasMany could be === null
-        Ember.assert("A " + relationshipMeta.parentType + "record was pushed into the store with the value of " + key + " being " + Ember.inspect(value) + ", but " + key + " is a hasMany relationship so the value must be an array. You should probably check your data payload or serializer.", Ember.isArray(value) || value === null);
-
-        relationship.data = (value || []).map(function(item) { return normalizeRelationshipData(key, item, relationshipMeta) });
+function validateDocumentStructure(doc) {
+  let errors = [];
+  if (!doc || typeof doc !== 'object') {
+    errors.push('Top level of a JSON API document must be an object');
+  } else {
+    if (!('data' in doc) &&
+        !('errors' in doc) &&
+        !('meta' in doc)) {
+      errors.push('One or more of the following keys must be present: "data", "errors", "meta".');
+    } else {
+      if (('data' in doc) && ('errors' in doc)) {
+        errors.push('Top level keys "errors" and "data" cannot both be present in a JSON API document');
       }
     }
-
-    if (itemPayload.links && itemPayload.links.hasOwnProperty(key)) {
-      relationship = relationship || {};
-      value = itemPayload.links[key];
-
-      relationship.links = {
-        related: value
-      };
+    if ('data' in doc) {
+      if (!(doc.data === null || Ember.isArray(doc.data) || typeof doc.data === 'object')) {
+        errors.push('data must be null, an object, or an array');
+      }
     }
-
-    if (relationship) {
-      relationship.meta = Ember.get(itemPayload, "meta." + key);
-      item.relationships[key] = relationship;
+    if ('meta' in doc) {
+      if (typeof doc.meta !== 'object') {
+        errors.push('meta must be an object');
+      }
     }
-  });
-
-  return item;
-}
-
-function normalizeRelationshipData(key, value, relationshipMeta) {
-  if (Ember.isNone(value)) {
-    return null;
-  }
-  //Temporary support for https://github.com/emberjs/data/issues/3271
-  if (value instanceof Model) {
-    value = { id: value.id, type: value.constructor.modelName };
-  }
-  if (Ember.typeOf(value) === 'object') {
-    Ember.assert("Ember Data expected a number or string to represent the record(s) in the " + key + " relationship instead it found an object. If this is a polymorphic relationship please specify a 'type' key. If this is an embedded relationship please include the 'DS.EmbeddedRecordsMixin' and specify the " + key + " property in your serializer's attrs object.", value.type);
-    if (value.id) {
-      value.id = "'" + value.id + "'";
+    if ('errors' in doc) {
+      if (!Ember.isArray(doc.errors)) {
+        errors.push('errors must be an array');
+      }
     }
-    return value;
-  }
-
-  Ember.assert("A" + relationshipMeta.parentType + "record was pushed into the store with the value of " + key + "being " + Ember.inspect(value) + ", but " + key + "is a belongsTo relationship so the value must not be an array. You should probably check your data payload or serializer.", !Ember.isArray(value));
-  return { id: "'" + value + "'", type: relationshipMeta.type };
-}
-
-
-function pushPayload(store, payload) {
-  var result = pushPayloadData(store, payload);
-  pushPayloadIncluded(store, payload);
-  return result;
-}
-
-function pushPayloadData(store, payload) {
-  var result;
-  if (payload && payload.data) {
-    if (Array.isArray(payload.data)) {
-      result = payload.data.map(function(item) {  return _pushResourceObject(store, item) });
-    } else {
-      result = _pushResourceObject(store, payload.data);
+    if ('links' in doc) {
+      if (typeof doc.links !== 'object') {
+        errors.push('links must be an object');
+      }
+    }
+    if ('jsonapi' in doc) {
+      if (typeof doc.jsonapi !== 'object') {
+        errors.push('jsonapi must be an object');
+      }
+    }
+    if ('included' in doc) {
+      if (typeof doc.included !== 'object') {
+        errors.push('included must be an array');
+      }
     }
   }
-  return result;
-}
 
-function pushPayloadIncluded(store, payload) {
-  var result;
-  if (payload && payload.included && Array.isArray(payload.included)) {
-    result = payload.included.map(function(item) { return _pushResourceObject(store, item) });
-  }
-  return result;
-}
-
-function _pushResourceObject(store, resourceObject) {
-  return store.push({ data: resourceObject });
+  return errors;
 }
