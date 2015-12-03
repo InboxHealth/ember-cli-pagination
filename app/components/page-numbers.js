@@ -5,6 +5,7 @@ import Validate from 'ember-cli-pagination/validate';
 
 export default Ember.Component.extend({
   currentPageBinding: "content.page",
+  perPageBinding: "content.perPage",
   totalPagesBinding: "content.totalPages",
 
   isVisible: function () {
@@ -86,7 +87,7 @@ export default Ember.Component.extend({
     pageClicked: function(number) {
       Util.log("PageNumbers#pageClicked number " + number);
       this.set("currentPage", number);
-      this.sendAction('action',number);
+      this.sendAction('action', number, this.get('perPage'));
     },
     incrementPage: function(num) {
       var currentPage = Number(this.get("currentPage")),
@@ -96,8 +97,7 @@ export default Ember.Component.extend({
       if(currentPage <= 1 && num === -1) { return false; }
       this.incrementProperty('currentPage', num);
 
-      var newPage = this.get('currentPage');
-      this.sendAction('action',newPage);
+      this.sendAction('action', this.get('currentPage'), this.get('perPage'));
     }
   }
 });
