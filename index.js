@@ -8,6 +8,6 @@ module.exports = {
     var checker = new VersionChecker(this);
     var dep = checker.for('ember-cli', 'npm');
 
-    dep.assertAbove('1.13.0') || dep.assertAbove('2.0.0');
+    dep.assertAbove('1.13.0');
   }
 };
