@@ -5,6 +5,14 @@ import { QueryParamsForBackend, ChangeMeta } from './mapping';
 import PageMixin from '../page-mixin';
 import DS from 'ember-data';
 import EmberDataHelpersMixin from 'ember-cli-pagination/ember-data-helpers';
+import {
+  serializerForAdapter
+} from "ember-data/-private/system/store/serializers";
+import {
+  _bind,
+  _guard,
+  _objectIsAlive
+} from "ember-data/-private/system/store/common";
 
 var ArrayProxyPromiseMixin = Ember.Mixin.create(Ember.PromiseProxyMixin, {
   then: function(success,failure) {
@@ -89,13 +97,13 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
         var type = store.modelFor(modelName);
         var adapter = store.adapterFor(modelName);
         var recordArray = store.recordArrayManager.createAdapterPopulatedRecordArray(type, ops);
-        var serializer = this.IHSerializerForAdapter(adapter, modelName, store);
+        var serializer = serializerForAdapter(store, adapter, modelName);
         var label = "DS: PagedRemoteArray Query on hasManyLinks for" + modelName;
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
         url = store.adapterFor(parentRecordType).buildURL(parentRecordType, parentRecordId) + '/' + modelPath;
         IHPromise = adapter.ajax(url, 'GET', { data: ops });
         IHPromise = Ember.RSVP.Promise.resolve(IHPromise, label);
-        IHPromise = this._IHGuard(IHPromise, this._IHBind(this._IHObjectIsAlive, store));
+        IHPromise = _guard(IHPromise, _bind(_objectIsAlive, store));
         IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
         var promiseArray = DS.PromiseArray.create({
           promise: Ember.RSVP.Promise.resolve(IHPromise, label)
