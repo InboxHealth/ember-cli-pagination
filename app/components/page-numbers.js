@@ -7,13 +7,13 @@ export default Ember.Component.extend({
   currentPageBinding: "content.page",
   totalPagesBinding: "content.totalPages",
 
-  isVisible: function () {
+  isVisible: Ember.computed('totalPages', function (){
     return this.get('totalPages') > 1;
-  }.property('totalPages'),
+  }),
 
   hasPages: Ember.computed.gt('totalPages', 1),
 
-  watchInvalidPage: function() {
+  watchInvalidPage: Ember.observer('invalidPageAction', function() {
     var me = this;
     var c = this.get('content');
     if (c && c.on) {
@@ -21,29 +21,37 @@ export default Ember.Component.extend({
         me.sendAction('invalidPageAction',e);
       });
     }
-  }.observes("content"),
+  }),
 
   truncatePages: true,
 
-  numPagesToShow: function(){
+  numPagesToShow: Ember.computed(function(){
     var w = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
     if(w<=500){
       return 5;
     }else{
       return 10;
     }
-  }.property(),
+  }),
 
-  adjustNumPagesToShow: function(){
-    var that = this;
-    Ember.$(window).resize(function(){
-      Ember.run(function(){
-        that.notifyPropertyChange('numPagesToShow');
-      })
-    });
-  }.on('didInsertElement'),
+  notifyNumPagesToShow(){
+    Ember.run(() => {
+      this.notifyPropertyChange('numPagesToShow');
+    })
+  },
 
-  validate: function() {
+  didInsertElement(){
+    this._super(...arguments);
+    this.set('resizeHandler', this.notifyNumPagesToShow.bind(this));
+    Ember.$(window).resize(this.get('resizeHandler'));
+  },
+
+  willDestroyElement(){
+    this._super(...arguments);
+    Ember.$(window).off('resize', this.get('resizeHandler'));
+  },
+
+  validate() {
     if (Util.isBlank(this.get('currentPage'))) {
       Validate.internalError("no currentPage for page-numbers");
     }
@@ -52,7 +60,7 @@ export default Ember.Component.extend({
     }
   },
 
-  pageItemsObj: function() {
+  pageItemsObj: Ember.computed(function() {
     return PageItems.create({
       parent: this,
       currentPageBinding: "parent.currentPage",
@@ -61,34 +69,34 @@ export default Ember.Component.extend({
       numPagesToShowBinding: "parent.numPagesToShow",
       showFLBinding: "parent.showFL"
     });
-  }.property(),
+  }),
 
-  pageItems: function() {
+  pageItems: Ember.computed('pageItemsObj.pageItems', function() {
     this.validate();
     return this.get("pageItemsObj.pageItems");
-  }.property("pageItemsObj.pageItems","pageItemsObj"),
+  }),
 
-  canStepForward: (function() {
+  canStepForward: Ember.computed("currentPage", "totalPages", function() {
     var page = Number(this.get("currentPage"));
     var totalPages = Number(this.get("totalPages"));
     return page < totalPages;
-  }).property("currentPage", "totalPages"),
+  }),
 
-  canStepBackward: (function() {
+  canStepBackward: Ember.computed('currentPage', function() {
     var page = Number(this.get("currentPage"));
     return page > 1;
-  }).property("currentPage"),
+  }),
 
   actions: {
-    preventLinkDefault: function(){
+    preventLinkDefault(){
       // action made so event.preventDefault() gets called when clicking link
     },
-    pageClicked: function(number) {
+    pageClicked(number) {
       Util.log("PageNumbers#pageClicked number " + number);
       this.set("currentPage", number);
       this.sendAction('action',number);
     },
-    incrementPage: function(num) {
+    incrementPage(num) {
       var currentPage = Number(this.get("currentPage")),
           totalPages = Number(this.get("totalPages"));
 
