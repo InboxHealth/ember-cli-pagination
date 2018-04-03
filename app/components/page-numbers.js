@@ -13,7 +13,7 @@ export default Ember.Component.extend({
 
   hasPages: Ember.computed.gt('totalPages', 1),
 
-  watchInvalidPage: Ember.observer('invalidPageAction', function() {
+  watchInvalidPage: Ember.observer('content', function() {
     var me = this;
     var c = this.get('content');
     if (c && c.on) {
@@ -71,7 +71,7 @@ export default Ember.Component.extend({
     });
   }),
 
-  pageItems: Ember.computed('pageItemsObj.pageItems', function() {
+  pageItems: Ember.computed('pageItemsObj.pageItems', 'pageItemsObj', function() {
     this.validate();
     return this.get("pageItemsObj.pageItems");
   }),
