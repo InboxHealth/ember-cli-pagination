@@ -20,6 +20,8 @@ var ArrayProxyPromiseMixin = Ember.Mixin.create(Ember.PromiseProxyMixin, {
 export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromiseMixin, EmberDataHelpersMixin, {
   page: 1,
   loading: false,
+  concatenateNewRecords: false, //can pass this as an option during creation to add the records to the array instead of replacing them
+
   paramMapping: function() {
     return {};
   }.property(''),
@@ -77,6 +79,10 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     var parentRecordType = this.get('parentRecordType');
     var parentRecordId = this.get('parentRecordId');
     var ops = this.get('paramsForBackend');
+    var existingRecords = [];
+    if(!Ember.isEmpty(this.get('content'))){
+      existingRecords = this.get('content').toArray();
+    }
     var res;
     var url;
     var modelPath;
@@ -96,7 +102,11 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
         IHPromise = adapter.ajax(url, 'GET', { data: ops });
         IHPromise = Ember.RSVP.Promise.resolve(IHPromise, label);
         IHPromise = this._IHGuard(IHPromise, this._IHBind(this._IHObjectIsAlive, store));
-        IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
+        if(this.get('concatenateNewRecords')){
+          IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store, existingRecords);
+        }else{
+          IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
+        }
         var promiseArray = DS.PromiseArray.create({
           promise: Ember.RSVP.Promise.resolve(IHPromise, label)
         });

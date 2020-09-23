@@ -43,7 +43,7 @@ _IHBind: function(fn) {
 },
 
 
-IHReturnPromise: function(promise, serializer, type, recordArray, store) {
+IHReturnPromise: function(promise, serializer, type, recordArray, store, existingRecords=[]) {
   return promise.then(function(adapterPayload) {
       var records;
       store._adapterRun(function() {
@@ -52,6 +52,10 @@ IHReturnPromise: function(promise, serializer, type, recordArray, store) {
         //TODO Optimize
         records = pushPayload(store, payload);
       });
+
+      if(!Ember.isEmpty(existingRecords)){
+        records = existingRecords.concat(records);
+      }
 
       recordArray.loadRecords(records);
       return recordArray;
