@@ -88,15 +88,20 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     else {
         var type = store.modelFor(modelName);
         var adapter = store.adapterFor(modelName);
-        var recordArray = store.recordArrayManager.createAdapterPopulatedRecordArray(type, ops);
-        var serializer = this.IHSerializerForAdapter(adapter, type);
+        // var recordArray = store.query(modelName, ops);
+        // var serializer = this.IHSerializerForAdapter(adapter, type);
         var label = "DS: PagedRemoteArray Query on hasManyLinks for" + type;
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
         url = store.adapterFor(parentRecordType).buildURL(parentRecordType, parentRecordId) + '/' + modelPath;
-        IHPromise = this.IHGetJSON(adapter, url, 'GET', ops);
-        IHPromise = Ember.RSVP.Promise.cast(IHPromise, label);
-        IHPromise = this._IHGuard(IHPromise, this._IHBind(this._IHObjectIsAlive, store));
-        IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
+        IHPromise = fetch(url, ops)
+                      .then(response => response.json())
+                      .then((json) => this.handleResponse(200, {}, json, {
+                        url, method: 'GET', payload: null
+                      }));
+        // this.IHGetJSON(adapter, url, 'GET', ops);
+        // IHPromise = Ember.RSVP.Promise.cast(IHPromise, label);
+        // IHPromise = this._IHGuard(IHPromise, this._IHBind(this._IHObjectIsAlive, store));
+        // IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
         var promiseArray = DS.PromiseArray.create({
           promise: Ember.RSVP.Promise.resolve(IHPromise, label)
         });
