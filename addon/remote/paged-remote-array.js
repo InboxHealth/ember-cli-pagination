@@ -4,7 +4,6 @@ import LockToRange from 'ember-cli-pagination/watch/lock-to-range';
 import { QueryParamsForBackend, ChangeMeta } from './mapping';
 import PageMixin from '../page-mixin';
 import DS from 'ember-data';
-import EmberDataHelpersMixin from 'ember-cli-pagination/ember-data-helpers';
 
 var ArrayProxyPromiseMixin = Ember.Mixin.create(Ember.PromiseProxyMixin, {
   then: function(success,failure) {
@@ -17,7 +16,7 @@ var ArrayProxyPromiseMixin = Ember.Mixin.create(Ember.PromiseProxyMixin, {
   }
 });
 
-export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromiseMixin, EmberDataHelpersMixin, {
+export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromiseMixin, {
   page: 1,
   loading: false,
   paramMapping: function() {
@@ -87,21 +86,14 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     }
     else {
         var type = store.modelFor(modelName);
-        var adapter = store.adapterFor(modelName);
-        // var recordArray = store.query(modelName, ops);
-        // var serializer = this.IHSerializerForAdapter(adapter, type);
         var label = "DS: PagedRemoteArray Query on hasManyLinks for" + type;
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
         url = store.adapterFor(parentRecordType).buildURL(parentRecordType, parentRecordId) + '/' + modelPath;
         IHPromise = fetch(url, ops)
                       .then(response => response.json())
-                      .then((json) => this.handleResponse(200, {}, json, {
-                        url, method: 'GET', payload: null
+                      .then(json => this.handleResponse(200, {}, json, {
+                        url, method: 'GET', query: ops
                       }));
-        // this.IHGetJSON(adapter, url, 'GET', ops);
-        // IHPromise = Ember.RSVP.Promise.cast(IHPromise, label);
-        // IHPromise = this._IHGuard(IHPromise, this._IHBind(this._IHObjectIsAlive, store));
-        // IHPromise = this.IHReturnPromise(IHPromise, serializer, type, recordArray, store);
         var promiseArray = DS.PromiseArray.create({
           promise: Ember.RSVP.Promise.resolve(IHPromise, label)
         });
