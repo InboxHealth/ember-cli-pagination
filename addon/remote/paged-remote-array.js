@@ -87,12 +87,13 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     }
     else {
         var type = store.modelFor(modelName);
+        var adapter = store.adapterFor(modelName);
         var label = "DS: PagedRemoteArray Query on hasManyLinks for" + type;
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
         url = store.adapterFor(parentRecordType).buildURL(parentRecordType, parentRecordId) + '/' + modelPath;
         IHPromise = fetch(url, ops)
                       .then(response => response.json())
-                      .then(json => this.handleResponse(200, {}, json, {
+                      .then(json => adapter.handleResponse(200, {}, json, {
                         url, method: 'GET', query: ops
                       }));
         var promiseArray = DS.PromiseArray.create({
