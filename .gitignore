@@ -17,3 +17,5 @@ npm-debug.log
 testem.log
 Rakefile
 Guardfile
+./addon/.DS_Store
+./addon/remote/.DS_Store
