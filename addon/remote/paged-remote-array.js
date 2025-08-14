@@ -3,7 +3,8 @@ import Util from 'ember-cli-pagination/util';
 import LockToRange from 'ember-cli-pagination/watch/lock-to-range';
 import { QueryParamsForBackend, ChangeMeta } from './mapping';
 import PageMixin from '../page-mixin';
-import DS from 'ember-data';
+import { camelize } from '@ember/string';
+import { pluralize } from 'ember-inflector';
 
 var ArrayProxyPromiseMixin = Ember.Mixin.create(Ember.PromiseProxyMixin, {
   then: function(success,failure) {
@@ -78,28 +79,15 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
     var parentRecordId = this.get('parentRecordId');
     var ops = this.get('paramsForBackend');
     var res;
-    var url;
     var modelPath;
-    var IHPromise;
 
     if( Ember.isEmpty(parentRecordType) || Ember.isEmpty(parentRecordId) ) {
         res = store.query(modelName, Object.assign({}, ops));
     }
     else {
-        var type = store.modelFor(modelName);
-        var adapter = store.adapterFor(modelName);
-        var label = "DS: PagedRemoteArray Query on hasManyLinks for" + type;
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
-        url = store.adapterFor(parentRecordType).buildURL(parentRecordType, parentRecordId) + '/' + modelPath;
-        IHPromise = fetch(url, ops)
-                      .then(response => response.json())
-                      .then(json => adapter.handleResponse(200, {}, json, {
-                        url, method: 'GET', query: ops
-                      }));
-        var promiseArray = DS.PromiseArray.create({
-          promise: Ember.RSVP.Promise.resolve(IHPromise, label)
-        });
-        res = promiseArray;
+        modelPath = pluralize(camelize(modelPath));
+        res = store.findRecord(parentRecordType, parentRecordId).then(r => r[modelPath]);
     }
     return res;
   },
