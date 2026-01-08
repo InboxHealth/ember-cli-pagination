@@ -1,58 +1,70 @@
-import Ember from 'ember';
+import { Promise } from 'rsvp';
+import { A } from '@ember/array';
+import { computed, observer } from '@ember/object';
+import Evented from '@ember/object/evented';
+import ArrayProxy from '@ember/array/proxy';
 import Util from 'ember-cli-pagination/util';
 import DivideIntoPages from 'ember-cli-pagination/divide-into-pages';
 import LockToRange from 'ember-cli-pagination/watch/lock-to-range';
 
-export default Ember.ArrayProxy.extend(Ember.Evented, {
+export default ArrayProxy.extend(Evented, {
   page: 1,
   perPage: 10,
 
-  divideObj: function() {
+  divideObj: function () {
     return DivideIntoPages.create({
-      perPage: this.get('perPage'),
-      all: this.get('content')
+      perPage: this.perPage,
+      all: this.content,
     });
   },
 
-  arrangedContent: function() {
-    return this.divideObj().objsForPage(this.get('page'));
-  }.property("content.@each", "page", "perPage"),
+  arrangedContent: computed('content.[]', 'page', 'perPage', function () {
+    return this.divideObj().objsForPage(this.page);
+  }),
 
-  totalPages: function() {
+  totalPages: computed('content.[]', 'perPage', function () {
     return this.divideObj().totalPages();
-  }.property("content.@each", "perPage"),
-  
-  setPage: function(page) {
-    Util.log("setPage " + page);
+  }),
+
+  setPage: function (page) {
+    Util.log('setPage ' + page);
     return this.set('page', page);
   },
 
-  watchPage: function() {
-    var page = this.get('page');
-    var totalPages = this.get('totalPages');
+  watchPage: observer('page', 'totalPages', function () {
+    var page = this.page;
+    var totalPages = this.totalPages;
 
-    this.trigger('pageChanged',page);
+    this.trigger('pageChanged', page);
 
     if (page < 1 || page > totalPages) {
-      this.trigger('invalidPage',{page: page, totalPages: totalPages, array: this});
+      this.trigger('invalidPage', {
+        page: page,
+        totalPages: totalPages,
+        array: this,
+      });
     }
-  }.observes('page','totalPages'),
+  }),
 
-  then: function(success,failure) {
-    var content = this.get('content');
+  then: function (success, failure) {
+    var content = A(this.content);
     var me = this;
+    var promise;
 
     if (content.then) {
-      content.then(function() {
-        success(me);
-      },failure);
+      promise = content.then(function () {
+        return success(me);
+      }, failure);
+    } else {
+      promise = new Promise(function (resolve) {
+        resolve(success(me));
+      });
     }
-    else {
-      success(this);
-    }
+
+    return promise;
   },
 
-  lockToRange: function() {
+  lockToRange: function () {
     LockToRange.watch(this);
-  }
+  },
 });

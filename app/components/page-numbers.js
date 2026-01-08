@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import Ember from 'ember';
 import Util from 'ember-cli-pagination/util';
 import PageItems from 'ember-cli-pagination/lib/page-items';
@@ -100,3 +101,6 @@ export default Ember.Component.extend({
     }
   }
 });
+=======
+export { default } from 'ember-cli-pagination/components/page-numbers';
+>>>>>>> v4.0.0-alpha.1

@@ -1,29 +1,32 @@
-import Ember from 'ember';
+import { module, test } from 'qunit';
 import { ChangeMeta } from 'ember-cli-pagination/remote/mapping';
 import Validate from 'ember-cli-pagination/validate';
 
-module("change-meta");
+module('Meta Response Test', function () {
+  test('smoke', function (assert) {
+    var meta = { total_pages: 4 };
+    var s = ChangeMeta.create({ meta: meta });
+    var newMeta = s.make();
+    assert.deepEqual(newMeta, meta);
+  });
 
-test("smoke", function() {
-  var meta = {total_pages: 4};
-  var s = ChangeMeta.create({meta: meta});
-  var newMeta = s.make();
-  deepEqual(newMeta,meta);
-});
+  test('mapped total_pages', function (assert) {
+    var meta = { num_pages: 4 };
+    var paramMapping = { total_pages: 'num_pages' };
+    var s = ChangeMeta.create({ meta: meta, paramMapping: paramMapping });
 
-test("mapped total_pages", function() {
-  var meta = {num_pages: 4};
-  var paramMapping = {total_pages: "num_pages"};
-  var s = ChangeMeta.create({meta: meta, paramMapping: paramMapping});
+    var newMeta = s.make();
+    assert.deepEqual(newMeta, { total_pages: 4 });
+  });
 
-  var newMeta = s.make();
-  deepEqual(newMeta,{total_pages: 4});
-});
+  test('no total_pages causes error', function (assert) {
+    var meta = { a: 4 };
+    var s = ChangeMeta.create({ meta: meta });
 
-test("no total_pages causes error", function() {
-  var meta = {a: 4};
-  var s = ChangeMeta.create({meta: meta});
-
-  s.make();
-  equal(Validate.getLastInternalError(),"no total_pages in meta response");
+    s.make();
+    assert.strictEqual(
+      Validate.getLastInternalError(),
+      'no total_pages in meta response'
+    );
+  });
 });

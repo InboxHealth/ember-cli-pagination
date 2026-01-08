@@ -1,8 +1,10 @@
-import Ember from 'ember';
+import Route from '@ember/routing/route';
+import { inject as service } from '@ember/service';
 
-export default Ember.Route.extend({
-  model: function() {
-    var paged = this.store.find('todo', {page: "all"});
-    return paged;
+export default class InfiniteRoute extends Route {
+  @service store;
+
+  model() {
+    return this.store.findAll('todo', { page: 'all' });
   }
-});
+}

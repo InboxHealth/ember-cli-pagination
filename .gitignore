@@ -1,4 +1,4 @@
-# See http://help.github.com/ignore-files/ for more about ignoring files.
+# See https://help.github.com/ignore-files/ for more about ignoring files.
 
 # compiled output
 /dist
@@ -13,9 +13,19 @@
 /connect.lock
 /coverage/*
 /libpeerconnection.log
-npm-debug.log
+npm-debug.log*
+yarn-error.log
 testem.log
 Rakefile
 Guardfile
 ./addon/.DS_Store
 ./addon/remote/.DS_Store
+/package-lock.json
+/yarn.lock
+/.eslintcache
+/codemods.log
+
+# ember-try
+.node_modules.ember-try/
+bower.json.ember-try
+package.json.ember-try

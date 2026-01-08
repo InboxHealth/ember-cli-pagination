@@ -1,29 +1,29 @@
-<div id="sortByField">
-  {{input type="text" value=sortByField}}
+<div id='sortByField'>
+  <Input @type='text' @value={{sortByField}} />
 </div>
 
-<table class="table">
+<table class='table'>
   <tr>
     <th>Name</th>
     <th>Completed</th>
   </tr>
 
-  {{#each content}}
-    <tr class="todo">
-      <td class="name">{{name}}</td>
+  {{#each model as |content|}}
+    <tr class='todo'>
+      <td class='name'>{{content.name}}</td>
       <td>
-        {{input type="checkbox" checked=completed}}
+        <Input @type='checkbox' @checked={{content.completed}} />
       </td>
     </tr>
   {{/each}}
 </table>
 
-{{page-numbers content=content}}
+<PageNumbers @content={{model}} />
 
-<button {{action "save"}}>Save</button>
+<button type='button' {{action 'save'}}>Save</button>
 
-<div class="numRemoteCalls">
-  {{content.numRemoteCalls}}
+<div class='numRemoteCalls'>
+  {{model.numRemoteCalls}}
 </div>
 
 {{outlet}}

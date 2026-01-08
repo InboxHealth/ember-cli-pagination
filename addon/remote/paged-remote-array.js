@@ -1,4 +1,10 @@
-import Ember from 'ember';
+import { once } from '@ember/runloop';
+import { alias } from '@ember/object/computed';
+import { computed, observer } from '@ember/object';
+import Evented from '@ember/object/evented';
+import ArrayProxy from '@ember/array/proxy';
+import PromiseProxyMixin from '@ember/object/promise-proxy-mixin';
+import Mixin from '@ember/object/mixin';
 import Util from 'ember-cli-pagination/util';
 import LockToRange from 'ember-cli-pagination/watch/lock-to-range';
 import { QueryParamsForBackend, ChangeMeta } from './mapping';
@@ -6,83 +12,106 @@ import PageMixin from '../page-mixin';
 import { camelize } from '@ember/string';
 import { pluralize } from 'ember-inflector';
 
-var ArrayProxyPromiseMixin = Ember.Mixin.create(Ember.PromiseProxyMixin, {
-  then: function(success,failure) {
-    var promise = this.get('promise');
+var ArrayProxyPromiseMixin = Mixin.create(PromiseProxyMixin, {
+  then: function (success, failure) {
+    var promise = this.promise;
     var me = this;
 
-    promise.then(function() {
-      success(me);
+    return promise.then(function () {
+      return success(me);
     }, failure);
-  }
+  },
 });
 
-export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromiseMixin, {
-  page: 1,
-  loading: false,
-  paramMapping: function() {
-    return {};
-  }.property(''),
 
-  init: function() {
-    this._super(...arguments);
-    var initCallback = this.get('initCallback');
+var ExtendedArrayProxy = ArrayProxy.extend(PageMixin, Evented, ArrayProxyPromiseMixin)
+
+export default class PagedRemoteArray extends ExtendedArrayProxy {
+  page = 1;
+  get paramMapping(){
+    return {};
+  }
+  
+  contentUpdated = 0;
+
+  constructor () {
+    // this._super(...arguments);
+    super();
+    var initCallback = this.initCallback;
     if (initCallback) {
       initCallback(this);
     }
+    // Array observers are not working anymore
+    /*this.addArrayObserver({
+      arrayWillChange(me) {
+        me.trigger('contentWillChange');
+      },
+      arrayDidChange(me) {
+        me.incrementProperty('contentUpdated');
+        me.trigger('contentUpdated');
+      },
+    });*/
 
     try {
-      this.get('promise');
-    }
-    catch (e) {
+      this.promise;
+    } catch (e) {
       this.set('promise', this.fetchContent());
     }
-  },
+  }
 
-  addParamMapping: function(key,mappedKey,mappingFunc) {
-    var paramMapping = this.get('paramMapping') || {};
+  addParamMapping (key, mappedKey, mappingFunc) {
+    var paramMapping = this.paramMapping || {};
     if (mappingFunc) {
-      paramMapping[key] = [mappedKey,mappingFunc];
-    }
-    else {
+      paramMapping[key] = [mappedKey, mappingFunc];
+    } else {
       paramMapping[key] = mappedKey;
     }
-    this.set('paramMapping',paramMapping);
+    this.set('paramMapping', paramMapping);
     this.incrementProperty('paramsForBackendCounter');
-      //this.pageChanged();
-  },
+    //this.pageChanged();
+  }
 
-  addQueryParamMapping: function(key,mappedKey,mappingFunc) {
-    return this.addParamMapping(key,mappedKey,mappingFunc);
-  },
+  addQueryParamMapping (key, mappedKey, mappingFunc) {
+    return this.addParamMapping(key, mappedKey, mappingFunc);
+  }
 
-  addMetaResponseMapping: function(key,mappedKey,mappingFunc) {
-    return this.addParamMapping(key,mappedKey,mappingFunc);
-  },
+  addMetaResponseMapping (key, mappedKey, mappingFunc) {
+    return this.addParamMapping(key, mappedKey, mappingFunc);
+  }
 
-  paramsForBackend: function() {
-    var paramsObj = QueryParamsForBackend.create({page: this.getPage(),
-                                                  perPage: this.getPerPage(),
-                                                  paramMapping: this.get('paramMapping')});
+  paramsForBackend() {
+    var page = this.getPage();
+    if (this.zeroBasedIndex) {
+      page--;
+    }
+
+    var paramsObj = QueryParamsForBackend.create({
+      page: page,
+      perPage: this.getPerPage(),
+      paramMapping: this.paramMapping,
+    });
     var ops = paramsObj.make();
 
     // take the otherParams hash and add the values at the same level as page/perPage
-    ops = Util.mergeHashes(ops,this.get('otherParams')||{});
+    ops = Util.mergeHashes(ops, this.otherParams || {});
 
     return ops;
-  }.property('page','perPage','paramMapping','paramsForBackendCounter'),
+  }
 
-  rawFindFromStore: function() {
-    var store = this.get('store');
-    var modelName = this.get('modelName');
-    var parentRecordType = this.get('parentRecordType');
-    var parentRecordId = this.get('parentRecordId');
-    var ops = this.get('paramsForBackend');
-    var res;
+  rawFindFromStore() {
+    // Store is not inherited anymore, this breaks the whole thing on ember 4
+    
+    var store = this.store;
+    var modelName = this.modelName;
+
+    var ops = this.paramsForBackend;
     var modelPath;
+    var parentRecordType = this.parentRecordType;
+    var parentRecordId = this.parentRecordId;
+    var res;
 
     if( Ember.isEmpty(parentRecordType) || Ember.isEmpty(parentRecordId) ) {
-        res = store.query(modelName, Object.assign({}, ops));
+        res = store.query(modelName, Object.assign({}, ops)); // always create a shallow copy of `ops` in case adapter would mutate the original object
     }
     else {
         modelPath = store.adapterFor(parentRecordType).pathForType(modelName);
@@ -90,67 +119,83 @@ export default Ember.ArrayProxy.extend(PageMixin, Ember.Evented, ArrayProxyPromi
         res = store.findRecord(parentRecordType, parentRecordId).then(r => r[modelPath]);
     }
     return res;
-  },
+  }
 
-  fetchContent: function() {
+  fetchContent() {
     this.set('loading', true);
     var res = this.rawFindFromStore();
-    this.incrementProperty("numRemoteCalls");
+    this.incrementProperty('numRemoteCalls');
     var me = this;
 
-    res.then(function(rows) {
-      var metaObj = ChangeMeta.create({paramMapping: me.get('paramMapping'),
-                                       meta: rows.meta,
-                                       page: me.getPage(),
-                                       perPage: me.getPerPage()});
+    res.then(
+      function (rows) {
+        var metaObj = ChangeMeta.create({
+          paramMapping: me.get('paramMapping'),
+          meta: rows.meta,
+          page: me.getPage(),
+          perPage: me.getPerPage(),
+        });
 
-      me.set('loading', false);
-      return me.set("meta", metaObj.make());
-
-    }, function(error) {
-      me.set('loading', false);
-      Util.log("PagedRemoteArray#fetchContent error " + error);
-    });
+        me.set('loading', false);
+        return me.set('meta', metaObj.make());
+      },
+      function (error) {
+        Util.log('PagedRemoteArray#fetchContent error ' + error);
+        me.set('loading', false);
+      }
+    );
 
     return res;
-  },
+  }
 
-  totalPagesBinding: "meta.total_pages",
+  @alias ('meta.total_pages') totalPages;
 
-  pageChanged: function() {
-    var page = this.get('page');
-    var lastPage = this.get('lastPage');
+  lastPage = null;
+
+  get pageChanged() {
+    var page = this.page;
+    var lastPage = this.lastPage;
     if (lastPage != page) {
       this.set('lastPage', page);
-      this.set("promise", this.fetchContent());
+      this.set('promise', this.fetchContent());
     }
-  }.observes("page", "perPage"),
+  }
 
-  lockToRange: function() {
+  lockToRange () {
     LockToRange.watch(this);
-  },
+  }
 
-  watchPage: function() {
-    var page = this.get('page');
-    var totalPages = this.get('totalPages');
+  get watchPage () {
+    var page = this.page;
+    var totalPages = this.totalPages;
     if (parseInt(totalPages) <= 0) {
       return;
     }
 
-    this.trigger('pageChanged',page);
+    this.trigger('pageChanged', page);
 
     if (page < 1 || page > totalPages) {
-      this.trigger('invalidPage',{page: page, totalPages: totalPages, array: this});
+      this.trigger('invalidPage', {
+        page: page,
+        totalPages: totalPages,
+        array: this,
+      });
     }
-  }.observes('page','totalPages'),
-
-  setOtherParam: function(k,v) {
-    if (!this.get('otherParams')) {
-      this.set('otherParams',{});
-    }
-
-    this.get('otherParams')[k] = v;
-    this.incrementProperty('paramsForBackendCounter');
-    Ember.run.once(this,"pageChanged");
   }
-});
+
+  reload () {
+    var promise = this.fetchContent();
+    this.set('promise', promise);
+    return promise;
+  }
+
+  setOtherParam (k, v) {
+    if (!this.otherParams) {
+      this.set('otherParams', {});
+    }
+
+    this.otherParams[k] = v;
+    this.incrementProperty('paramsForBackendCounter');
+    once(this, 'pageChanged');
+  }
+}
