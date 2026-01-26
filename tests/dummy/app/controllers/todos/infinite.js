@@ -1,15 +1,29 @@
-import Ember from 'ember';
+import Controller, { inject } from '@ember/controller';
+import { sort, alias } from '@ember/object/computed';
+import { action } from '@ember/object';
+import { tracked } from '@glimmer/tracking';
+import { inject as service } from '@ember/service';
 import pagedArray from 'ember-cli-pagination/computed/paged-array';
 
-export default Ember.ArrayController.extend({
-  queryParams: ["page"],
-  page: 1,
-  
-  pagedContent: pagedArray('content', {infinite: "unpaged"}),
+class QueryParamsObj {
+  @tracked page = 1;
+}
 
-  actions: {
-    loadNext: function() {
-      this.get('pagedContent').loadNextPage();
-    }
+export default class InfiniteController extends Controller {
+  @service router;
+
+  queryParams = [{ 'queryParamsObj.page': 'page' }];
+
+  queryParamsObj = new QueryParamsObj();
+  sortingProperties = Object.freeze(['name:asc']);
+
+  @sort('model', 'sortingProperties') arrangedContent;
+  sortingOrder = 'asc';
+
+  @pagedArray('arrangedContent', { infinite: 'unpaged' })
+  pagedContent;
+
+  @action loadNext() {
+    this.pagedContent.loadNextPage();
   }
-});
+}

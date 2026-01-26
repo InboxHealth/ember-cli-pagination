@@ -1,28 +1,41 @@
 ---
 language: node_js
+node_js:
+  - '12'
 
-sudo: false
+dist: xenial
+
+addons:
+  chrome: stable
 
 cache:
   directories:
-    - node_modules
-
-before_install:
-  - "npm config set spin false"
-  - "npm install -g npm@^2"
-
-install:
-  - npm install ember-cli@$EMBER_CLI_VERSION
-  - npm install -g bower
-  - npm install
-  - bower install
-
-script:
-  - npm test
+    - $HOME/.npm
+    - $HOME/.cache # includes bowers cache
 
 env:
-  - EMBER_CLI_VERSION=latest
-  - EMBER_CLI_VERSION=0.0.46
-  - EMBER_CLI_VERSION=0.0.44
-  - EMBER_CLI_VERSION=0.0.42
-  - STANDIN_VAR=nothing
+  global:
+    # See https://git.io/vdao3 for details.
+    - JOBS=1
+  matrix:
+    # we recommend new addons test the current and previous LTS
+    # as well as latest stable release (bonus points to beta/canary)
+    - EMBER_TRY_SCENARIO=ember-lts-3.24
+    - EMBER_TRY_SCENARIO=ember-lts-3.28
+    - EMBER_TRY_SCENARIO=ember-release
+
+matrix:
+  allow_failures:
+    - env: EMBER_TRY_SCENARIO=ember-beta
+    - env: EMBER_TRY_SCENARIO=ember-canary
+    - env: EMBER_TRY_SCENARIO=embroider-safe
+    - env: EMBER_TRY_SCENARIO=embroider-optimized
+
+branches:
+  only:
+    - master
+
+script:
+  # Usually, it's ok to finish the test scenario without reverting
+  #  to the addon's original dependency state, skipping "cleanup".
+  #- node_modules/.bin/ember try:one $EMBER_TRY_SCENARIO --skip-cleanup

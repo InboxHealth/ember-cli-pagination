@@ -1,75 +1,105 @@
-import Ember from 'ember';
-import { test } from 'ember-qunit';
+import { run } from '@ember/runloop';
+import { A } from '@ember/array';
+import { test } from 'qunit';
 import PagedArray from 'ember-cli-pagination/local/paged-array';
 import equalArray from '../../../helpers/equal-array';
 
-module("PagedArray");
+//module("PagedArray abc");
 
-var paramTest = function(name,ops,f) {
-  test(name, function() {
+var paramTest = function (name, ops, f) {
+  if (ops.content) {
+    ops.content = A(ops.content);
+  }
+  test(name, function (assert) {
+    assert.expect(1);
     var subject = null;
 
-    Ember.run(function() {
+    run(function () {
       subject = PagedArray.create(ops);
     });
 
-    f(subject);
+    f(subject, assert);
   });
 };
 
-paramTest("smoke", {page: 1, perPage: 2, content: [1,2,3,4,5]}, function(s) {
-  equal(s.get('totalPages'),3);
-  equalArray(s,[1,2]);
+paramTest(
+  'smoke',
+  { page: 1, perPage: 2, content: [1, 2, 3, 4, 5] },
+  function (s, assert) {
+    assert.expect(3);
+    assert.strictEqual(s.get('totalPages'), 3);
+    equalArray(assert, s, [1, 2]);
 
-  s.set('page',2);
-  equalArray(s,[3,4]);
-});
+    s.set('page', 2);
+    equalArray(assert, s, [3, 4]);
+  }
+);
 
-paramTest("page out of range should give empty array", {page: 20, perPage: 2, content: [1,2,3,4,5]}, function(s) {
-  equalArray(s,[]);
-});
+paramTest(
+  'page out of range should give empty array',
+  { page: 20, perPage: 2, content: [1, 2, 3, 4, 5] },
+  function (s, assert) {
+    assert.expect(1);
+    equalArray(assert, s, []);
+  }
+);
 
-paramTest("working then method", {page: 1, perPage: 2, content: [1,2,3,4,5]}, function(s) {
-  equalArray(s,[1,2]);
+paramTest(
+  'working then method',
+  { page: 1, perPage: 2, content: [1, 2, 3, 4, 5] },
+  function (s, assert) {
+    assert.expect(3);
+    equalArray(assert, s, [1, 2]);
 
-  s.set('page',2);
-  s.then(function(res) {
-    equalArray(s,[3,4]);
-    equalArray(res,[3,4]);
-  });
-});
+    s.set('page', 2);
+    s.then(function (res) {
+      equalArray(assert, s, [3, 4]);
+      equalArray(assert, res, [3, 4]);
+    });
+  }
+);
 
-paramTest("page oob event test", {page: 1, perPage: 2, content: [1,2,3,4,5]}, function(s) {
-  var events = [];
-  s.on('invalidPage', function(page) {
-    events.push(page);
-  });
+paramTest(
+  'page oob event test',
+  { page: 1, perPage: 2, content: [1, 2, 3, 4, 5] },
+  function (s, assert) {
+    assert.expect(3);
+    var events = [];
+    s.on('invalidPage', function (page) {
+      events.push(page);
+    });
 
-  Ember.run(function() {
-    s.set('page',20);
-  });
+    run(function () {
+      s.set('page', 20);
+    });
 
-  equal(events.length,1);
-  equal(events[0].page,20);
+    assert.strictEqual(events.length, 1);
+    assert.strictEqual(events[0].page, 20);
 
-  Ember.run(function() {
-    s.set('page',2);
-  });
-  equal(events.length,1);
-});
+    run(function () {
+      s.set('page', 2);
+    });
+    assert.strictEqual(events.length, 1);
+  }
+);
 
 import LockToRange from 'ember-cli-pagination/watch/lock-to-range';
-paramTest("LockToRange", {page: 1, perPage: 2, content: [1,2,3,4,5]}, function(s) {
-  LockToRange.watch(s);
-  Ember.run(function() {
-    s.set('page',20);
-  });
+paramTest(
+  'LockToRange',
+  { page: 1, perPage: 2, content: [1, 2, 3, 4, 5] },
+  function (s, assert) {
+    assert.expect(2);
+    LockToRange.watch(s);
+    run(function () {
+      s.set('page', 20);
+    });
 
-  equalArray(s,[5]);
+    equalArray(assert, s, [5]);
 
-  Ember.run(function() {
-    s.set('page',-10);
-  });
+    run(function () {
+      s.set('page', -10);
+    });
 
-  equalArray(s,[1,2]);
-});
+    equalArray(assert, s, [1, 2]);
+  }
+);

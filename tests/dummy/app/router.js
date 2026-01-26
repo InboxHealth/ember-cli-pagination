@@ -1,18 +1,17 @@
-import Ember from 'ember';
-import config from './config/environment';
+import EmberRouter from '@ember/routing/router';
+import config from 'dummy/config/environment';
 
-var Router = Ember.Router.extend({
-  location: config.locationType
-});
+export default class Router extends EmberRouter {
+  location = config.locationType;
+  rootURL = config.rootURL;
+}
 
-Router.map(function() {
-  this.resource('todos', function() {
-    this.route("infinite");
+Router.map(function () {
+  this.route('todos', function () {
+    this.route('infinite');
     this.route('infinite-remote');
-    this.route("remote");
-    this.route("local");
-    this.route("remote-sorted");
+    this.route('remote');
+    this.route('local');
+    this.route('remote-sorted');
   });
 });
-
-export default Router;
