@@ -14,20 +14,20 @@ export default Ember.ArrayProxy.extend(Ember.Evented, {
     });
   },
 
-  arrangedContent: function() {
+  arrangedContent: Ember.computed("content.[]", "page", "perPage", function() {
     return this.divideObj().objsForPage(this.get('page'));
-  }.property("content.@each", "page", "perPage"),
+  }),
 
-  totalPages: function() {
+  totalPages: Ember.computed("content.[]", "perPage", function() {
     return this.divideObj().totalPages();
-  }.property("content.@each", "perPage"),
-  
+  }),
+
   setPage: function(page) {
     Util.log("setPage " + page);
     return this.set('page', page);
   },
 
-  watchPage: function() {
+  watchPage: Ember.observer('page','totalPages', function() {
     var page = this.get('page');
     var totalPages = this.get('totalPages');
 
@@ -36,20 +36,25 @@ export default Ember.ArrayProxy.extend(Ember.Evented, {
     if (page < 1 || page > totalPages) {
       this.trigger('invalidPage',{page: page, totalPages: totalPages, array: this});
     }
-  }.observes('page','totalPages'),
+  }),
 
   then: function(success,failure) {
-    var content = this.get('content');
+    var content = Ember.A(this.get('content'));
     var me = this;
+    var promise;
 
     if (content.then) {
-      content.then(function() {
-        success(me);
+      promise = content.then(function() {
+        return success(me);
       },failure);
     }
     else {
-      success(this);
+      promise = new Ember.RSVP.Promise(function(resolve) {
+        resolve(success(me));
+      });
     }
+
+    return promise;
   },
 
   lockToRange: function() {

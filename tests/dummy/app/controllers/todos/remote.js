@@ -1,8 +1,6 @@
 import Ember from 'ember';
 
-export default Ember.ArrayController.extend({
+export default Ember.Controller.extend({
   queryParams: ["page","perPage"],
-  page: 1,
-
-  pageBinding: Ember.Binding.oneWay("content.page")
+  page: 1
 });

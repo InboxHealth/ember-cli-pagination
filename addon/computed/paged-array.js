@@ -4,40 +4,59 @@ import PagedInfiniteArray from 'ember-cli-pagination/infinite/paged-infinite-arr
 
 function makeLocal(contentProperty,ops) {
   return Ember.computed("",function() {
-    var pagedOps = {}; //{content: this.get(contentProperty)};
-    pagedOps.parent = this;
-
-    var getVal = function(key,val) {
-      if (key.match(/Binding$/)) {
-        return "parent."+val;
-        //return Ember.Binding.oneWay("parent."+val);
-      }
-      else {
-        return val;
-      }
+    let instanceOpts = {
+      parent: this
+    };
+    let classOpts = {
+      content: Ember.computed.alias('parent.' + contentProperty)
     };
 
+    // update the old binding method to the new alias method
+    // converts {pageBinding: 'page'} to {page: Ember.computed.alias('parent.page')}
     for (var key in ops) {
-      pagedOps[key] = getVal(key,ops[key]);
+      if ( ops.hasOwnProperty(key) ) {
+        const alias = key.replace(/Binding$/, '');
+        const value = ops[key];
+        if ( alias !== key ) {
+//          pagedOps[alias] = Ember.computed.alias('parent.' + value);
+          classOpts[alias] = Ember.computed.alias('parent.' + value);
+          Ember.deprecate('Using Binding is deprecated, use Ember.computed.alias or Ember.computed.oneWay instead', false, {
+            id: 'addon.ember-cli-pagination.paged-array',
+            until: '3.0.0',
+            url: 'http://emberjs.com/deprecations/v2.x#toc_ember-binding' // @TODO change this to our changelog entry
+          });
+          // ^ deprecation warning based off of https://github.com/emberjs/ember.js/pull/13920/files
+        }
+        else {
+          if (Ember.isArray(value) || typeof(value) == "object" && (!value || typeof(value.get) !== "function")) {
+            instanceOpts[key] = value;
+          } else {
+            classOpts[key] = value;
+          }
+        }
+      }
     }
 
-    var paged = PagedArray.extend({
-      contentBinding: "parent."+contentProperty
-    }).create(pagedOps);
+    const paged = PagedArray.extend(classOpts).create(instanceOpts);
+
     // paged.lockToRange();
     return paged;
   });
 }
 
 function makeInfiniteWithPagedSource(contentProperty /*, ops */) {
-  return Ember.computed(function() {
+  return Ember.computed(contentProperty, function() {
     return PagedInfiniteArray.create({all: this.get(contentProperty)});
   });
 }
 
 function makeInfiniteWithUnpagedSource(contentProperty,ops) {
-  return Ember.computed(function() {
-    ops.all = this.get(contentProperty);
+  return Ember.computed(contentProperty, function() {
+    let all = this.get(contentProperty);
+    if (all) {
+      all = Ember.A(all);
+    }
+    ops.all = all;
     return PagedInfiniteArray.createFromUnpaged(ops);
   });
 }

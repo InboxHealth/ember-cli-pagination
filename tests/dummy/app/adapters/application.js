@@ -1,5 +1,7 @@
-import DS from 'ember-data';
+import ActiveModelAdapter from 'active-model-adapter';
 
-export default DS.ActiveModelAdapter.extend({
-  namespace: "api"
+export default ActiveModelAdapter.extend({
+  namespace: "api",
+
+  shouldReloadAll: function() { return true; }
 });

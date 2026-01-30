@@ -4,22 +4,22 @@
     <th>Completed</th>
   </tr>
 
-  {{#each content}}
+  {{#each model as |content|}}
     <tr class="todo">
-      <td>{{name}}</td>
+      <td>{{content.name}}</td>
       <td>
-        {{input type="checkbox" checked=completed}}
+        {{input type="checkbox" checked=content.completed}}
       </td>
     </tr>
   {{/each}}
 </table>
 
-{{page-numbers content=content}}
+{{page-numbers content=model}}
 
 <button {{action "save"}}>Save</button>
 
 <div class="numRemoteCalls">
-  {{content.numRemoteCalls}}
+  {{model.numRemoteCalls}}
 </div>
 
 {{outlet}}

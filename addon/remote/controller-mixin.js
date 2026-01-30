@@ -3,10 +3,10 @@ import Ember from 'ember';
 
 export default Ember.Mixin.create({
   queryParams: ["page", "perPage"],
-  
-  pageBinding: "content.page",
 
-  totalPagesBinding: "content.totalPages",
+  page: Ember.computed.alias("model.page"),
 
-  pagedContentBinding: "content"
+  totalPages: Ember.computed.alias("model.totalPages"),
+
+  pagedContent: Ember.computed.alias("model")
 });
